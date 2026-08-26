@@ -15,10 +15,6 @@ type Registry struct {
 	Clock clock.Clock
 }
 
-type resourceStatusCommitter interface {
-	CommitResourceStatus(context.Context, string, domain.ResourceStatus, int) error
-}
-
 func (s Registry) Create(ctx context.Context, res domain.Resource, ver domain.ResourceVersion, rev domain.Review, req string) (domain.Resource, error) {
 	if res.Status == "" {
 		res.Status = domain.ResourceDraft
@@ -43,12 +39,10 @@ func (s Registry) Submit(ctx context.Context, id string, version int, actor, ten
 		return apperrors.ErrConflict
 	}
 	event := audit.Event("audit-submit", tenant, actor, "resource", id, "submit", "ok", req, "resource submitted", s.Clock)
-	if committer, ok := s.Store.(resourceStatusCommitter); ok {
-		if e := committer.CommitResourceStatus(ctx, id, domain.ResourceSubmitted, version); e != nil {
-			return e
-		}
-		return s.Store.WithTx(ctx, func(tx *sql.Tx) error { return s.Store.AddAuditTx(ctx, tx, event) })
-	}
+	// The status transition and the audit record must commit or roll back
+	// together: committing the status in its own transaction and then writing
+	// the audit in a second one leaves the resource submitted with no audit
+	// (and no way to retry) when the audit write fails.
 	return s.Store.WithTx(ctx, func(tx *sql.Tx) error {
 		if e := s.Store.UpdateResourceStatusTx(ctx, tx, id, domain.ResourceSubmitted, version); e != nil {
 			return e

@@ -103,12 +103,6 @@ func (r *Repo) UpdateResourceStatusTx(ctx context.Context, tx *sql.Tx, id string
 	return nil
 }
 
-func (r *Repo) CommitResourceStatus(ctx context.Context, id string, status domain.ResourceStatus, version int) error {
-	return r.DB.WithTx(ctx, func(tx *sql.Tx) error {
-		return r.UpdateResourceStatusTx(ctx, tx, id, status, version)
-	})
-}
-
 func (r *Repo) CreateAuthorizationTx(ctx context.Context, tx *sql.Tx, a domain.Authorization) error {
 	_, e := tx.ExecContext(ctx, "INSERT INTO authorization_requests(id,tenant_id,resource_id,applicant_id,status,purpose,quota,used,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)", a.ID, a.TenantID, a.ResourceID, a.ApplicantID, a.Status, a.Purpose, a.Quota, a.Used, a.Version, iso(a.CreatedAt), iso(a.UpdatedAt))
 	return e
